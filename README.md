@@ -5,11 +5,7 @@ In this project, I cleaned the NovaPay transaction data to get it ready for frau
 
 
 
-# New Task
-
-Using IQR, about 9.5% of values in amount, fee and ip_risk_score were outliers. Their fraud rate was 44–70%, compared with 3–5% in normal rows, so I kept them because they carry the fraud signal. risk_score_internal outliers were 100% fraud, which suggests possible data leakage. A trimmed mean (10%) showed the typical transaction is about $198, versus a raw mean of $443 inflated by outliers.
-
-# NovaPay Fraud Detection
+# NEW TASK
 
 In this project I explored and cleaned NovaPay transaction data to find patterns that separate fraud from normal transactions.
 
@@ -21,3 +17,21 @@ Using the IQR method, I found that about 9.5% of the values in amount, fee and I
 
 EDA findings:
 Only 8.9% of transactions are fraud, so the data is imbalanced. Fraud transactions had bigger amounts, higher IP risk scores, lower device trust scores and much newer accounts. Low KYC customers had about 52% fraud. Web transactions, new devices and location mismatches all had much higher fraud rates. Sending money to NGN and MXN had the most fraud (about 19%). Fraud also jumped between 3am and 8am UTC, which is late night in the US. The strongest link to fraud was transaction velocity: fraudsters make many transactions in a short time.
+
+
+
+# 7 October 2026 – Smarter Missing Value Filling
+
+In this task, I improved how I filled the missing values for amount_usd, fee and kyc_tier. Before, I used one simple median or "unknown" for everything, but now I used methods that make more sense for each column.
+
+amount_usd:
+Instead of guessing, I worked out each currency's conversion rate to USD using the rows that had both amount_src and amount_usd. I divided amount_usd by amount_src and took the median rate for each source currency. The rates came out as CAD = 0.74, GBP = 1.25 and USD = 1.00, which match real exchange rates. Then I filled the missing amount_usd values by multiplying amount_src by its currency's rate. I also did the reverse to fill missing amount_src values.
+
+fee:
+Fees depend on the channel, because ATM, web and mobile charge differently. So I grouped the data by channel and filled each missing fee with the median fee of its own channel.
+
+kyc_tier:
+I grouped the data by home country and filled each missing KYC tier with the most common tier in that country, because KYC rules can be different in each country. Anything still missing after that was filled with "unknown".
+
+Result:
+After re-running everything, the EDA charts and fraud patterns stayed almost the same. This is because only 2–4% of rows were filled differently, and it shows my findings are strong and don't depend on how the blanks were filled.
