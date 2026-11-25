@@ -59,3 +59,37 @@ For hyperparameter tuning, I used RandomizedSearchCV with 5-fold stratified cros
 I also tested threshold tuning by lowering the decision threshold from 0.5 down to 0.1. Lowering it only increased recall slightly, from 0.819 to 0.894, while precision dropped sharply from 0.948 to 0.276. This showed that 0.5 gives the best balance.
 
 The main finding is that recall stayed at about 82% across every strategy. This suggests that about 18% of fraud cases look almost the same as normal transactions with the features currently available. Further tuning is unlikely to fix this, so adding new data sources, such as device fingerprints or longer customer history, would likely improve fraud detection more than further model optimisation.
+
+## 22 October 2026: Model Comparison, Explainability and Saving
+
+For this task, I compared other model types, explained how my final model makes decisions, and saved it for reuse.
+
+Model comparison:
+I trained a Logistic Regression and a Gradient Boosting model on the same engineered features and compared them with my Random Forest models. Logistic Regression had the highest recall (0.849) and PR-AUC (0.884), but its precision was only 0.638, meaning it raised many false alarms. Gradient Boosting reached a precision of 0.886 and a PR-AUC of 0.877, but did not beat Random Forest. The differences between all models were small (PR-AUC between 0.869 and 0.884), and since the test set only has about 198 fraud cases, these gaps could be due to chance. I chose the Tuned Random Forest as my final model because it gives the best balance, with high precision (0.948) and a near-top PR-AUC (0.880), and its settings were chosen using 5-fold cross-validation, which is more reliable than a single test score.
+
+Explainability:
+First, I used feature importance to see which features the model relies on most. The top three were all about transaction velocity, which matches my EDA. Five of my engineered features made the top 15, including velocity_ratio at number 3 and cust_txn_count at number 4, which shows my feature engineering was useful.
+
+Then I used SHAP to explain the model's decisions. The SHAP summary chart showed that high transaction velocity, new accounts, customers with few past transactions, high IP risk scores, low device trust scores, location mismatches and low KYC tiers all pushed predictions towards fraud. Every pattern makes business sense, which builds trust that the model would work on real data.
+
+I also used SHAP to explain one single fraud transaction. The model was 95.3% sure it was fraud, mainly because the customer made 8 transactions in one hour and 11 in one day, it was their first transaction on record, they used an untrusted device, and their location did not match their country. This is the kind of explanation a bank investigator would need.
+
+Saving the model:
+I saved the final tuned model and its list of feature columns using joblib, so the model can be reused without retraining. I tested this by loading the saved model back, and it gave the same PR-AUC of 0.88.
+
+## 22 October 2026: Fraud Detection API
+
+For this task, I turned my saved model into a live API using FastAPI, so other systems can send a transaction and get a fraud prediction back in real time.
+
+The API has three endpoints. The home endpoint gives a welcome message, the health endpoint confirms the model is loaded, and the predict endpoint scores a transaction. When a transaction is sent to /predict, the API checks the input is valid, rebuilds the same engineered features used in training (such as the night-time flag and velocity ratio), scores it with the tuned Random Forest model, and explains the decision using SHAP. It returns the fraud probability, whether it is fraud using a 0.5 threshold, a risk level of low, medium or high, and the top three reasons behind the decision.
+
+The API also checks every input automatically. For example, if someone sends an IP risk score above 1 or leaves out a required field, it rejects the request with a 422 validation error, which follows the same rules I used when cleaning the data. Customer history features, such as the number of past transactions, are sent as inputs, because a single transaction cannot know a customer's history. In a real system, these would come from a database.
+
+FastAPI also creates interactive Swagger documentation automatically. When I tested the example fraud transaction in Swagger, the API flagged it as high risk and gave transaction velocity as the main reason, which matches the SHAP results from my notebook.
+
+To run the API, open a terminal in the project folder with the virtual environment active, run uvicorn api.main:app --reload, and open http://127.0.0.1:8000/docs in a browser.
+
+
+## Next Steps
+
+The next steps are to investigate the 18% of fraud cases the model misses, add new data sources such as device fingerprints and longer customer history, deploy the API to Azure using Docker, and monitor the model for drift so it can be retrained when fraud patterns change.
